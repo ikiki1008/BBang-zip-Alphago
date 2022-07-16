@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        // More API functions here:
+        // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+    
+        // the link to your v_model provided by Teachable Machine export panel
+        const v_URL = "http://localhost/tensor/my_video_model/";
+    
+        let v_model, v_webcam, v_labelContainer, v_maxPredictions;
+    
+        // Load the image v_model and setup the v_webcam
+        async function v_init() {
+            const v_modelURL = v_URL + "model.json";
+            const v_metadataURL = v_URL + "metadata.json";
+    
+            // load the v_model and metadata
+            // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+            // or files from your local hard drive
+            // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+            v_model = await tmImage.load(v_modelURL, v_metadataURL);
+            v_maxPredictions = v_model.getTotalClasses();
+    
+            // Convenience function to setup a v_webcam
+            const flip = true; // whether to flip the v_webcam
+            v_webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+            await v_webcam.setup(); // request access to the v_webcam
+            await v_webcam.play();
+            window.requestAnimationFrame(v_loop);
+    
+            // append elements to the DOM
+            document.getElementById("v_webcam-container").appendChild(v_webcam.canvas);
+            v_labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < v_maxPredictions; i++) { // and class labels
+                v_labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+    
+        async function v_loop() {
+            v_webcam.update(); // update the v_webcam frame
+            await predict();
+            window.requestAnimationFrame(v_loop);
+        }
+    
+        // run the v_webcam image through the image v_model
+        async function predict() {
+            // predict can take in an image, video or canvas html element
+            const prediction = await v_model.predict(v_webcam.canvas);
+            // 큰 값 찾기
+            let v_max = 0;
+            let v_index = 0;
+            for(let i = 0; i < v_maxPredictions; i++) {
+                if (v_max < prediction[i].probability) {
+                    v_max = prediction[i].probability;
+                    v_index = i;
+                }
+            }
+            v_labelContainer.innerHTML = 
+            prediction[v_index].className + " : " + prediction[v_index].probability;
+            if(prediction[v_index].className !== 'none') {
+                pauseCam();
+                // setTimeout(resumeCam, 2000)
+            }
+            // for (let i = 0; i < v_maxPredictions; i++) {
+            //     const classPrediction =
+            //         prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+            //     v_labelContainer.childNodes[i].innerHTML = classPrediction;
+            // }
+        }
+        // 함수 만들기
+        function pauseCam() {
+            v_webcam.pause();
+        }
+        function resumeCam() {
+            v_webcam.play();
+        }
+    </script>
+</head>
+<body><div>Teachable Machine Image Model</div>
+    <button type="button" onclick="v_init()">Start</button>
+    <button type="button" onclick="pauseCam()">Stop</button>
+    <button type="button" onclick="resumeCam()">Resume</button>
+    <div id="v_webcam-container"></div>
+    <div id="label-container"></div>
+    
+    
+</body>
+</html>

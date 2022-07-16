@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script>
+    // 품목 갯수 증가 감소 함수
+    function btn_event(type){
+        const resultElement = document.getElementById('count');
+
+        let number = resultElement.innerText;
+
+            if(type === 'plus') {
+                number = parseInt(number) + 1;
+            }else if(type === 'minus')  {
+                if(number > 1){
+                    number = parseInt(number) - 1;
+                }
+                else{ 
+                    alert("X")
+                    // 품목이 1개아래로 내려가지 못하게 alret이용
+                }
+            }else if(type === 'cancel') {
+                number = 0;
+                // cancle버튼을 누르면 품목 취소 품목개수가 0으로 돌아가는 함수
+        }
+            resultElement.innerText = number;
+        }
+    </script>
+</head>
+<body>
+       <table>
+           <tbody>
+               <tr>
+               <td>
+                       <div id='plus_icon'>
+                           <img src="./icons/add.png" alt="Plus_icon" style="width: 30px; height: 30px;" onclick='btn_event("plus")'>
+                       </div>
+                </td>
+                <td>
+                       <div id='count'>1</div> <!--품목의 시작갯수를 1로 지정-->
+                </td>
+                <td>
+                    <div id='minus_icon'>
+                        <img src="./icons/minus.png" alt="Minus_icon" style="width: 30px; height: 30px;" onclick='btn_event("minus")'>
+                    </div>
+                </td>
+                <td>
+                    <div id="cancel_icon">
+                        <img src="./icons/cancel.png" alt="Cancel_icon" style="width: 30px;" height="30px" onclick="btn_event('cancel')">
+                    </div>
+                </td>
+               </tr>
+           </tbody>
+       </table>
+</body>
+</html>

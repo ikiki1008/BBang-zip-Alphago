@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <title>2021-07-21</title>
+    <style>
+        #settings {
+            position: absolute;
+            bottom: 1em;
+            right: 1em;
+        }
+        .card {
+            background-color: transparent;
+        }
+        .card-body {
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+        }
+    </style>
+    <!-- =================================================================================================== -->
+    <!-- Video  -->
+    <!-- =================================================================================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    <script src="howler.min.js"></script>
+    <script src="./jquery.animate-colors-min.js"></script>
+    <script>
+        var soundBGM = new Howl({
+          src: ['./sound/dingdong.mp3'],
+          volume: 0.7
+        });
+        var soundEffect = new Howl({
+          src: ['./sound/scanning.mp3'],
+          volume: 0.5
+        });
+    </script>
+    <script type="text/javascript">
+        // More API functions here:
+        // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
+    
+        // the link to your v_model provided by Teachable Machine export panel
+        const v_URL = "./bread_model/";
+    
+        let v_model, v_webcam, v_labelContainer, v_maxPredictions;
+    
+        // Load the image v_model and setup the v_webcam
+        async function v_init() {
+            $('#v_startBtn').remove();
+            const v_modelURL = v_URL + "model.json";
+            const v_metadataURL = v_URL + "metadata.json";
+    
+            // load the v_model and metadata
+            // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+            // or files from your local hard drive
+            // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+            v_model = await tmImage.load(v_modelURL, v_metadataURL);
+            v_maxPredictions = v_model.getTotalClasses();
+    
+            // Convenience function to setup a v_webcam
+            const flip = false; // whether to flip the v_webcam
+            v_webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+            await v_webcam.setup(); // request access to the v_webcam
+            await v_webcam.play();
+            window.requestAnimationFrame(v_loop);
+    
+            // append elements to the DOM
+            document.getElementById("v_webcam-container").appendChild(v_webcam.canvas);
+            document.getElementsByTagName('Canvas')[0].style.transform='rotate(90deg)';
+            v_labelContainer = document.getElementById("v_label-container");
+            for (let i = 0; i < v_maxPredictions; i++) { // and class labels
+                v_labelContainer.appendChild(document.createElement("div"));
+            }
+        }
+
+        // "일정시간 이상 한 가지 물건을 인식했을 때" 함수에 사용할 객체
+        let prdVal = {};
+        let predict_switch = true;
+        let result_predict;
+
+        function insertAnimation(target) {
+            target.css({borderTopColor: 'rgba(251, 206, 177)', borderLeftColor: 'rgba(251, 206, 177)', borderRightColor: 'rgba(251, 206, 177)', backgroundColor: 'rgba(255, 229, 211)'});
+            target.animate({borderTopColor: 'rgba(251, 206, 177, 0)', borderLeftColor: 'rgba(251, 206, 177, 0)', borderRightColor: 'rgba(251, 206, 177, 0)', backgroundColor: 'rgba(255, 229, 211, 0)'}, 1500);
+        }
+    
+        async function v_loop() {
+            v_webcam.update(); // update the v_webcam frame
+            window.requestAnimationFrame(v_loop);
+            const prd = await predict();
+            // console.log(prdVal);
+            if(prd !== undefined) {
+                if(prdVal[prd] !== undefined) {
+                    prdVal[prd] += (1.0/50); // 지연 결정
+                } else prdVal[prd] = 0;
+                
+                if(predict_switch)
+                    if(prdVal[prd] > 1) {
+                        result_predcit = prd;
+                        prdVal = {};
+                        predict_switch = false;
+                        insertAnimation(insertProduct(prd));
+                    }
+            } else {
+                prdVal = {};
+                predict_switch = true;
+            }
+
+        }
+    
+        // run the v_webcam image through the image v_model
+        async function predict() {
+            // predict can take in an image, video or canvas html element
+            const prediction = await v_model.predict(v_webcam.canvas);
+            // 큰 값 찾기
+            let v_max = 0;
+            let v_index = 0;
+            for(let i = 0; i < v_maxPredictions; i++) {
+                if (v_max < prediction[i].probability) {
+                    v_max = prediction[i].probability;
+                    v_index = i;
+                }
+            }
+            v_labelContainer.innerHTML = prediction[v_index].className + " : " + prediction[v_index].probability;
+            $('#v_progressBar')[0].style.width = `${prediction[v_index].probability*100}%`;
+            $('#v_progressBar')[0].innerHTML = `${prediction[v_index].className}`;
+            if(prediction[v_index].className !== 'none') {
+                // v_labelContainer.innerHTML = "Stop";
+                return prediction[v_index].className;
+            }
+        }
+
+        function getPredcitResult() {
+            return result_predict;
+        }
+
+        function addTable(val) {
+            if(val !== undefined) document.getElementById('tb').innerHTML += `<tr><td>${val}</td></tr>`;
+        }
+    </script>
+    <!-- =================================================================================================== -->
+    <!-- Audio  -->
+    <!-- =================================================================================================== -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="./speech-commands.min.js"></script>
+
+<script type="text/javascript">
+    // more documentation available at
+    // https://github.com/tensorflow/tfjs-models/tree/master/speech-commands
+
+    // the link to your model provided by Teachable Machine export panel
+    const URL = "http://localhost/tensor/my_audio_model/";
+
+    async function createModel() {
+        const checkpointURL = URL + "model.json"; // model topology
+        const metadataURL = URL + "metadata.json"; // model metadata
+
+        const recognizer = speechCommands.create(
+            "BROWSER_FFT", // fourier transform type, not useful to change
+            undefined, // speech commands vocabulary feature, not useful for your models
+            checkpointURL,
+            metadataURL);
+
+        // check that model and metadata are loaded via HTTPS requests.
+        await recognizer.ensureModelLoaded();
+
+        return recognizer;
+    }
+
+    let recognizer = null;
+    let classLabels = null;
+    let labelContainer = null;
+    async function init() {
+        $('#a_startBtn').remove();
+        recognizer = await createModel();
+        classLabels = recognizer.wordLabels(); // get class labels
+        labelContainer = document.getElementById("label-container");
+        // for (let i = 0; i < classLabels.length; i++) {
+        //     labelContainer.appendChild(document.createElement("div"));
+        // }
+
+        // listen() takes two arguments:
+        // 1. A callback function that is invoked anytime a word is recognized.
+        // 2. A configuration object with adjustable fields
+        recognizer.listen(result => {
+            const scores = result.scores; // probability of prediction for each class
+            // render the probability scores per class
+            a_max = 0;
+            a_index = 0;
+            for (let i = 0; i < classLabels.length; i++) {
+                if(a_max < result.scores[i]) {
+                    a_max = result.scores[i];
+                    a_index = i;
+                }
+            }
+            labelContainer.innerHTML = classLabels[a_index];
+            switch(classLabels[a_index]) {
+                case "하나":
+                    insertAnimation(changeProduct(lastInsertItem, 1));
+                    break;
+                case "둘":
+                    insertAnimation(changeProduct(lastInsertItem, 2));
+                    break;
+                case "셋":
+                    insertAnimation(changeProduct(lastInsertItem, 3));
+                    break;
+                case "넷":
+                    insertAnimation(changeProduct(lastInsertItem, 4));
+                    break;
+                case "다섯":
+                    insertAnimation(changeProduct(lastInsertItem, 5));
+                    break;
+                case "취소":
+                    break;
+                case "완료":
+                    list = [];
+                    POSRefresh();
+            }
+            // if(classLabels[a_index] == 'play') {
+            //     v_labelContainer.innerHTML = "";
+            // }
+            // for (let i = 0; i < classLabels.length; i++) {
+            //     const classPrediction = classLabels[i] + ": " + result.scores[i].toFixed(2);
+            //     labelContainer.childNodes[i].innerHTML = classPrediction;
+            // }
+        }, {
+            includeSpectrogram: true, // in case listen should return result.spectrogram
+            probabilityThreshold: 0.75,
+            invokeCallbackOnNoiseAndUnknown: true,
+            overlapFactor: 0.50 // probably want between 0.5 and 0.75. More info in README
+        });
+
+        // Stop the recognition in 5 seconds.
+        // setTimeout(() => recognizer.stopListening(), 5000);
+    }
+    // ===================================================================================================
+    // POS부
+    // ===================================================================================================
+
+    let price
+    $(document).ready(function(){
+        // $.getJSON('Bread_price.json', function(data) {
+        //     load_json = data;
+        // });
+        // console.log(load_json);
+        // getJSON은 async가 true이고 수정이 불가능하다고 한다.. 그러니까 데이터를 불러오기전에 console.log가 찍혀서 undefined가 뜨는거였음
+        $.ajax({
+            url: "Bread_price.json",
+            dataType: "json",
+            type: "GET",
+            async: false,
+            success: function(data) {
+                price = data;
+                $.each(data, function(key, value) {
+                    price[key] = Number(value);
+                })
+            }
+        })
+        console.log(price);
+    });
+    let lastInsertItem = "";
+    let list = [];
+    function POSRefresh() {
+        $('#tb').empty();
+        for(var i of list) {
+            let row = "";
+            row += `<tr id='tr_${i[0]}'>`;
+            for(var j in i) {
+                row += `<td id='td_${i[0]}_${j}'>${(isNaN(Number(i[j]))? i[j] : insertComma([i[j]]))}</td>`;
+            }
+            row += '</tr>'
+            $('#tb').append(row);
+        }
+        let sumCount = 0;
+        let sumPrice = 0;
+        for(var i of list) {
+            sumCount += i[2];
+            sumPrice += i[3];
+        }
+        $('#sum')[0].innerHTML = insertComma(sumPrice);
+    }
+
+    function insertProduct(product) {
+        const item = [product, price[product], 1, price[product]];
+        lastInsertItem = product;
+        for(var i of list) {
+            if(i[0] === product) {
+                i[2]++;
+                i[3] = price[product] * i[2];
+                soundEffect.play();
+                POSRefresh();
+                // return $(`#td_${product}_2`);
+                return $(`#tr_${product} > *`).slice(2);
+            }
+        }
+        list.push(item);
+        soundBGM.play();
+        POSRefresh();
+        return $(`#tr_${product}`);
+    }
+
+    function changeProduct(product, amount) {
+        const item = [product, price[product], amount, price[product] * amount];
+        lastInsertItem = product;
+        if(lastInsertItem !== "");
+            for(var i of list) {
+                if(i[0] === product) {
+                    i[2] = amount;
+                    i[3] = price[product] * i[2];
+                    soundEffect.play();
+                    POSRefresh();
+                    // return $(`#td_${product}_2`);
+                    return $(`#tr_${product} > *`).slice(2);
+                }
+            }
+    }
+    // ========================================================================
+    // 금액 쉼표넣는 메소드, 과거의 나 감사.
+    // ========================================================================
+    function insertComma(value) {
+        var output = "";
+        for(var i=1;i <= String(value).length; i++) {
+            output = String(value)[String(value).length-i] + output;
+            if(Number.isInteger(i/3))
+                if(i != String(value).length) // 마지막 루프 체크.. 이부분이 없으니 "100,000"이 ",100,000"으로 나오더라 ...
+                    output = "," + output;
+        }
+        return output;
+    }
+</script>
+</head>
+<body style="background-color: steelblue;">
+    <!-- Video -->
+    <div class="row" style="height: 8em; background-color: rgb(47, 87, 119);">
+        <h1 style="color: white; margin: auto; margin-left: 1em;">Bakery AI Cashier</h1>
+    </div>
+    <div class="container" style="margin-top: 2em; height: 100%;">
+        <div class="row" style="height: 100%;">
+        <div class="col-4">
+            <div class="card">
+                <div class="card-body">
+                    <button class="btn btn-outline-primary btn-block btn-sm" style="width: 100%;" id="v_startBtn" type="button" onclick="v_init()">Start</button>
+                    <button class="btn btn-outline-secondary btn-block btn-sm" style="width: 100%;" id="v_resumeBtn" type="button" onclick="predict_switch=true;">Resume</button>
+                    <div id="v_webcam-container"></div>
+                    <div id="v_label-container"></div>
+                    <div class="progress">
+                        <div id="v_progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuemin="0" aria-valuemax="1" style="width: 0%"></div>
+                    </div>
+        
+                    <!-- Audio -->
+                    <button class="btn btn-outline-primary btn-sm" style="width: 100%;" id="a_startBtn" type="button" onclick="init()">Start</button>
+                    <div id="label-container"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-8" style="height: 100%;">
+            <div class="card">
+                <div class="card-body">
+                    <p style="text-align: center;"><b>입력 상품 목록</b></p>
+                    <table class="table" style="text-align: center;">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">빵이름</th>
+                                <th style="width: 20%;">단가</th>
+                                <th style="width: 10%;">갯수</th>
+                                <th style="width: 30%;">계</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tb">
+                        </tbody>
+                    </table>
+                    <div class="col-4 float-end">
+                        <div class="card-body" style="background-color: rgb(47, 87, 119); color: white; border-radius: 0px;">
+                            <div class="row">
+                                <div class="col-4">합계</div>
+                                <div class="col-8" style="text-align: right;">
+                                    <span id="sum">0</span> 원
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    <div id='settings'>
+        <img src="./icons/settings-solid.svg" alt="Settings" style="width: 40px; height: 40px;">
+    </div>
+    
+</body>
+</html>
